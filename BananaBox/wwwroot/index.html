@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AigcBox Results</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  background: #f7f8fa;
+  color: #333;
+  padding: 0 20px 220px 20px;
+}
+
+#tasks-container { margin-top: 16px; }
+
+#empty-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #aaa;
+  font-size: 14px;
+}
+
+.task-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px 16px 10px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+/* 卡片顶部 */
+.card-header {
+  margin-bottom: 10px;
+}
+
+.task-meta {
+  font-size: 11px;
+  color: #aaa;
+  margin-bottom: 5px;
+}
+
+/* 参考图小缩略图 + 提示词同行 */
+.prompt-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ref-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.ref-col img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  display: block;
+}
+
+.task-prompt {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  max-height: 60px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 生成结果区 */
+.results-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+
+.result-item {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.result-item img {
+  display: block;
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 6px;
+  border: 1px solid #eee;
+  cursor: pointer;
+  object-fit: contain;
+  background: #f0f0f0;
+}
+
+.result-item video {
+  display: block;
+  width: 220px;
+  height: 140px;
+  border-radius: 6px;
+  border: 1px solid #eee;
+  background: #000;
+  cursor: pointer;
+  object-fit: contain;
+}
+
+.placeholder {
+  width: 180px;
+  height: 180px;
+  border-radius: 6px;
+  border: 1px solid #eee;
+  background: #f4f4f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #888;
+}
+
+.placeholder.video {
+  width: 220px;
+  height: 140px;
+}
+
+.placeholder .spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #ddd;
+  border-top-color: #999;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.placeholder.error { background: #fff5f5; color: #c0392b; border-color: #f5c6cb; }
+
+/* 图片灯箱 */
+#lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+#lightbox.open { display: flex; }
+#lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 6px;
+  object-fit: contain;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+  cursor: default;
+}
+
+/* 操作按钮 */
+.actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn:hover { background: #f5f5f5; }
+
+/* 三点下拉 */
+.dropdown { position: relative; }
+
+.btn-more {
+  padding: 4px 8px;
+  font-size: 16px;
+  line-height: 1;
+  font-family: inherit;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #888;
+  cursor: pointer;
+  transition: background 0.15s;
+  letter-spacing: 0;
+}
+.btn-more:hover { background: #f5f5f5; }
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  min-width: 108px;
+  z-index: 50;
+  overflow: hidden;
+}
+.dropdown-menu.open { display: block; }
+.dropdown-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  color: #555;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dropdown-menu button:hover { background: #f5f5f5; }
+.dropdown-menu button.danger { color: #c0392b; }
+.dropdown-menu button.danger:hover { background: #fff5f5; }
+
+/* ═══════════════════════════════════════
+   底部输入面板
+═══════════════════════════════════════ */
+#bottom-panel {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 40px);
+  max-width: 700px;
+  background: #fff;
+  border-radius: 5px;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.09);
+  z-index: 100;
+}
+
+/* 顶行：服务商标签 + 标签页 */
+.panel-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px 0 16px;
+}
+
+.provider-tag {
+  font-size: 12px;
+  color: #999;
+  background: #f4f4f4;
+  border-radius: 8px;
+  padding: 2px 8px;
+  user-select: none;
+}
+
+.provider-tag-link {
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.provider-tag-link:hover {
+  background: #e8f0fe;
+  color: #555;
+}
+
+.tab-group {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+
+.tab-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #bbb;
+  cursor: pointer;
+  font-weight: normal;
+  transition: background 0.15s, color 0.15s;
+}
+.tab-btn:hover { background: #f5f5f5; color: #777; }
+.tab-btn.active {
+  background: #e8f0fe;
+  color: #333;
+  font-weight: bold;
+}
+
+/* 分隔线 */
+.panel-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 8px 16px 0;
+}
+
+/* 中间行：参考图 + 提示词 + 生成按钮 */
+.panel-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+}
+
+#ref-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.ref-thumb {
+  position: relative;
+  width: 44px;
+  height: 44px;
+}
+
+.ref-thumb img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  display: block;
+}
+
+.ref-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  font-family: inherit;
+}
+.ref-remove:hover { background: rgba(0,0,0,0.65); }
+
+#btn-upload-ref {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1.5px dashed #ccc;
+  background: #fafafa;
+  color: #bbb;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+#btn-upload-ref:hover { background: #f0f0f0; border-color: #bbb; color: #888; }
+
+#prompt-input {
+  flex: 1;
+  min-height: 72px;
+  max-height: 130px;
+  border: none;
+  outline: none;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  color: #333;
+  resize: none;
+  line-height: 1.6;
+  background: transparent;
+  padding: 2px 0;
+}
+#prompt-input::placeholder { color: #c0c0c0; }
+
+#btn-generate {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #ff8c32;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-end;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+#btn-generate:hover { background: #f5f5f5; }
+#btn-generate:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 底行：参数下拉框 + 字数 */
+.panel-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 10px 16px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.param-select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #f2f3f5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23aaa'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 8px 5px;
+  border: none;
+  border-radius: 10px;
+  padding: 4px 26px 4px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #444;
+  cursor: pointer;
+  height: 26px;
+  outline: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.param-select:focus { background-color: #eaebee; }
+
+#char-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: #ccc;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 广告卡片 */
+#ad-card {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: #fff;
+  border-radius: 0;
+  padding: 14px 34px 10px 20px;
+  margin-left: -20px;
+  margin-right: -20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+#ad-card:hover { background: #f9f9fb; }
+
+.ad-close {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: #ccc;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+  font-family: inherit;
+}
+.ad-close:hover { color: #888; }
+
+.ad-badge {
+  font-size: 10px;
+  color: #fff;
+  background: #1a73e8;
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.ad-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #0078d4 0%, #00b4d8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.ad-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ad-title {
+  font-size: 13px;
+  font-weight: bold;
+  color: #222;
+  margin-bottom: 2px;
+}
+
+.ad-desc {
+  font-size: 11px;
+  color: #888;
+}
+</style>
+</head>
+<body>
+<div id="ad-card" onclick="window.chrome.webview.postMessage(JSON.stringify({action:'openUrl',url:'https://rewards.bing.com/welcome?rh=B470CB33&ref=rafsrchae&form=ML2XE3&OCID=ML2XE3&PUBL=RewardsDO&CREA=ML2XE3'}))">
+  <div class="ad-icon">🎁</div>
+  <div class="ad-body">
+    <div class="ad-title">免费赚取积分，兑换礼品卡、话费充值</div>
+    <div class="ad-desc">使用 Microsoft Bing 搜索即可赚取积分</div>
+  </div>
+  <span class="ad-badge">广告</span>
+  <button class="ad-close" onclick="event.stopPropagation();document.getElementById('ad-card').style.display='none'" title="关闭">×</button>
+</div>
+
+<div id="empty-hint">输入提示词开始生成图像或视频</div>
+<div id="tasks-container"></div>
+
+<!-- 图片灯箱 -->
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
+</div>
+
+<!-- 底部输入面板 -->
+<div id="bottom-panel">
+  <div class="panel-header">
+    <span class="provider-tag provider-tag-link" onclick="window.chrome.webview.postMessage(JSON.stringify({action:'openUrl',url:'https://duomiapi.com/user/register?cps=dhwJyHCh'}))" title="注册多米 API 账号">多米 API</span>
+    <div class="tab-group">
+      <button id="tab-video" class="tab-btn" onclick="switchTab(0)">视频生成</button>
+      <button id="tab-image" class="tab-btn active" onclick="switchTab(1)">图片生成</button>
+    </div>
+  </div>
+  <div class="panel-divider"></div>
+  <div class="panel-main">
+    <div id="ref-area">
+      <button id="btn-upload-ref" onclick="uploadRefImage()" title="添加参考图">+</button>
+    </div>
+    <textarea id="prompt-input"
+      placeholder="请输入提示词描述你想生成的内容..."
+      oninput="onPromptInput()"
+      onkeydown="onPromptKeyDown(event)"></textarea>
+    <button id="btn-generate" onclick="submitGenerate()">↑</button>
+  </div>
+  <div class="panel-footer">
+    <select id="sel-model" class="param-select" onchange="onModelChange()"></select>
+    <select id="sel-aspect-ratio" class="param-select"></select>
+    <select id="sel-duration" class="param-select"></select>
+    <select id="sel-resolution" class="param-select" style="display:none">
+      <option value="1K">1K</option>
+      <option value="2K" selected>2K</option>
+      <option value="4K">4K</option>
+    </select>
+    <select id="sel-quantity" class="param-select">
+      <option value="1">生成 1 条</option>
+      <option value="2">生成 2 条</option>
+      <option value="3">生成 3 条</option>
+      <option value="4">生成 4 条</option>
+    </select>
+    <span id="char-count">0/1000</span>
+  </div>
+</div>
+
+<script>
+// ═══ 任务瀑布流 ═══════════════════════════════════════════
+var _tasks = [];
+var _firstRender = true;
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function stateLabel(state, progress, errorMessage) {
+  switch (state) {
+    case 0: return '<div class="spinner"></div><span>等待中...</span>';
+    case 1: return '<div class="spinner"></div><span>生成中 ' + progress + '%</span>';
+    case 2: return '<span>✓ 已完成</span>';
+    case 3: return '<span>✗ ' + escapeHtml(errorMessage || '生成失败') + '</span>';
+    default: return '<span>未知</span>';
+  }
+}
+
+function buildCard(task) {
+  var children = task.children || [];
+  var isVideo = task.type === 1;
+
+  var metaParts = ['#' + task.id, task.model];
+  if (task.aspectRatio) metaParts.push(task.aspectRatio);
+  if (task.quantity > 1) metaParts.push('×' + task.quantity);
+  metaParts.push(task.createTime);
+  var meta = metaParts.join(' | ');
+
+  var refColHtml = '';
+  if (task.refImageUrls && task.refImageUrls.length > 0) {
+    refColHtml = '<div class="ref-col">';
+    task.refImageUrls.forEach(function(url) {
+      refColHtml += '<img src="' + escapeHtml(url) + '" alt="参考图" title="点击放大" style="cursor:zoom-in" onclick="openLightbox(\'' + escapeHtml(url) + '\')">';
+    });
+    refColHtml += '</div>';
+  }
+
+  var headerHtml = '<div class="card-header">' +
+    '<div class="task-meta">' + escapeHtml(meta) + '</div>' +
+    '<div class="prompt-row">' +
+      refColHtml +
+      '<div class="task-prompt">' + escapeHtml(task.prompt) + '</div>' +
+    '</div>' +
+  '</div>';
+
+  var allFinished = children.length > 0 && children.every(function(c) {
+    return c.state === 2 || c.state === 3;
+  });
+
+  var resultsHtml = '';
+  if (children.length > 0) {
+    resultsHtml = '<div class="results-row">';
+    children.forEach(function(c) {
+      var hasFile = c.localUrl && c.localUrl !== '';
+      if (c.state === 2 && hasFile) {
+        if (isVideo) {
+          resultsHtml += '<div class="result-item"><video controls><source src="' + escapeHtml(c.localUrl) + '" type="video/mp4"></video></div>';
+        } else {
+          resultsHtml += '<div class="result-item"><img src="' + escapeHtml(c.localUrl) + '" alt="result" onclick="openLightbox(\'' + escapeHtml(c.localUrl) + '\')" style="cursor:zoom-in"></div>';
+        }
+      } else {
+        var errorClass = c.state === 3 ? ' error' : '';
+        var videoClass = isVideo ? ' video' : '';
+        resultsHtml += '<div class="result-item"><div class="placeholder' + errorClass + videoClass + '">' + stateLabel(c.state, c.progress, c.errorMessage) + '</div></div>';
+      }
+    });
+    resultsHtml += '</div>';
+  }
+
+  return '<div class="task-card" id="task-' + task.id + '">' +
+    headerHtml +
+    resultsHtml +
+    '<div class="actions">' +
+      '<button class="btn" onclick="postAction(\'reEdit\',' + task.id + ')">✏ 重新编辑</button>' +
+      '<div class="dropdown">' +
+        '<button class="btn-more" onclick="toggleDropdown(' + task.id + ',event)" title="更多操作">⋮</button>' +
+        '<div class="dropdown-menu" id="dm-' + task.id + '">' +
+          (allFinished ? '' : '<button onclick="postAction(\'refresh\',' + task.id + ');closeDropdown(' + task.id + ')">⟳ 刷新状态</button>') +
+          '<button class="danger" onclick="postAction(\'delete\',' + task.id + ');closeDropdown(' + task.id + ')">🗑 删除</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderTasks(tasks) {
+  _tasks = tasks || [];
+  var container = document.getElementById('tasks-container');
+  var hint = document.getElementById('empty-hint');
+
+  var atBottom = _firstRender || (window.innerHeight + window.scrollY) >= document.body.scrollHeight - 40;
+  _firstRender = false;
+
+  if (_tasks.length === 0) {
+    hint.style.display = 'flex';
+    container.innerHTML = '';
+    return;
+  }
+
+  hint.style.display = 'none';
+  var html = '';
+  _tasks.forEach(function(t) { html += buildCard(t); });
+  container.innerHTML = html;
+
+  if (atBottom) {
+    setTimeout(function() { window.scrollTo(0, document.body.scrollHeight); }, 0);
+  }
+}
+
+function postAction(action, taskId) {
+  window.chrome.webview.postMessage(JSON.stringify({ action: action, taskId: taskId }));
+}
+
+function openFile(childId) {
+  window.chrome.webview.postMessage(JSON.stringify({ action: 'download', taskId: childId }));
+}
+
+// ═══ 底部输入面板 ══════════════════════════════════════════
+
+var _currentType = 1;   // 0=视频, 1=图片
+var _refImages   = [];  // [{url, name}]
+var _isGenerating = false;
+
+var _videoModels = ['sora-2', 'sora-2-pro'];
+var _imageModels = ['gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview'];
+
+var _modelLabels = {
+  'gemini-3.1-flash-image-preview':  'nano-bananna-2',
+  'gemini-3-pro-image-preview':      'nano-banana-pro'
+};
+
+var _videoDurationMap = {
+  'sora-2':           ['10秒', '15秒'],
+  'sora-2-pro':       ['15秒', '25秒'],
+};
+
+var _videoAspectRatios = ['9:16', '16:9'];
+var _imageAspectRatios = ['auto', '1:1', '16:9', '9:16', '4:3', '3:4', '2:3', '3:2', '4:5', '5:4', '21:9'];
+
+function switchTab(type) {
+  _currentType = type;
+  document.getElementById('tab-video').className = 'tab-btn' + (type === 0 ? ' active' : '');
+  document.getElementById('tab-image').className = 'tab-btn' + (type === 1 ? ' active' : '');
+  updateModelList();
+  updateAspectRatioOptions();
+  document.getElementById('sel-duration').style.display = type === 0 ? '' : 'none';
+  updateResolutionVisibility();
+}
+
+function updateModelList() {
+  var sel = document.getElementById('sel-model');
+  var models = _currentType === 0 ? _videoModels : _imageModels;
+  var current = sel.value;
+
+  sel.innerHTML = models.map(function(m) {
+    var label = _modelLabels[m] || m;
+    return '<option value="' + m + '">' + label + '</option>';
+  }).join('');
+
+  if (models.indexOf(current) >= 0) sel.value = current;
+  else sel.selectedIndex = 0;
+
+  updateDurationOptions();
+  updateResolutionVisibility();
+}
+
+function updateAspectRatioOptions() {
+  var sel = document.getElementById('sel-aspect-ratio');
+  var ratios = _currentType === 0 ? _videoAspectRatios : _imageAspectRatios;
+  var current = sel.value;
+  sel.innerHTML = ratios.map(function(r) {
+    return '<option value="' + r + '">' + r + '</option>';
+  }).join('');
+  if (ratios.indexOf(current) >= 0) sel.value = current;
+  else sel.selectedIndex = 0;
+}
+
+function updateDurationOptions() {
+  if (_currentType !== 0) return;
+  var sel = document.getElementById('sel-duration');
+  var model = document.getElementById('sel-model').value;
+  var options = _videoDurationMap[model] || ['10秒', '15秒', '25秒'];
+  var current = sel.value;
+  sel.innerHTML = options.map(function(d) {
+    return '<option value="' + d + '">' + d + '</option>';
+  }).join('');
+  if (options.indexOf(current) >= 0) sel.value = current;
+}
+
+function updateResolutionVisibility() {
+  var model = document.getElementById('sel-model').value;
+  var showRes = (_currentType === 1 && (model === 'gemini-3-pro-image-preview' || model === 'gemini-3.1-flash-image-preview'));
+  document.getElementById('sel-resolution').style.display = showRes ? '' : 'none';
+}
+
+function onModelChange() {
+  updateDurationOptions();
+  updateResolutionVisibility();
+}
+
+function onPromptInput() {
+  var len = document.getElementById('prompt-input').value.length;
+  document.getElementById('char-count').textContent = len + '/1000';
+}
+
+function onPromptKeyDown(e) {
+  // Ctrl+Enter 或 Cmd+Enter 提交
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    submitGenerate();
+  }
+}
+
+// ─── 参考图 ─────────────────────────────────────────────
+
+function uploadRefImage() {
+  window.chrome.webview.postMessage(JSON.stringify({ action: 'uploadRef' }));
+}
+
+function removeRefImage(index) {
+  window.chrome.webview.postMessage(JSON.stringify({ action: 'removeRef', index: index }));
+}
+
+function setRefImages(images) {
+  _refImages = images || [];
+  renderRefArea();
+}
+
+function renderRefArea() {
+  var area = document.getElementById('ref-area');
+  var html = '';
+  _refImages.forEach(function(img, i) {
+    html += '<div class="ref-thumb">' +
+      '<img src="' + escapeHtml(img.url) + '" alt="' + escapeHtml(img.name) + '" title="' + escapeHtml(img.name) + '">' +
+      '<button class="ref-remove" onclick="removeRefImage(' + i + ')" title="移除">×</button>' +
+    '</div>';
+  });
+  html += '<button id="btn-upload-ref" onclick="uploadRefImage()" title="添加参考图">+</button>';
+  area.innerHTML = html;
+}
+
+// ─── 提交生成 ────────────────────────────────────────────
+
+function submitGenerate() {
+  if (_isGenerating) return;
+
+  var prompt = document.getElementById('prompt-input').value.trim();
+  if (!prompt) {
+    document.getElementById('prompt-input').focus();
+    return;
+  }
+
+  var model = document.getElementById('sel-model').value;
+  var aspectRatio = document.getElementById('sel-aspect-ratio').value;
+  var quantity = parseInt(document.getElementById('sel-quantity').value, 10);
+
+  var msg = {
+    action: 'generate',
+    type: _currentType,
+    model: model,
+    prompt: prompt,
+    aspectRatio: aspectRatio,
+    quantity: quantity
+  };
+
+  if (_currentType === 0) {
+    var durationText = document.getElementById('sel-duration').value;
+    msg.duration = parseInt(durationText.replace('秒', ''), 10);
+  } else {
+    var resSel = document.getElementById('sel-resolution');
+    if (resSel.style.display !== 'none') {
+      msg.resolution = resSel.value;
+    }
+  }
+
+  window.chrome.webview.postMessage(JSON.stringify(msg));
+}
+
+// ─── C# → JS 接口 ────────────────────────────────────────
+
+function setGenerating(val) {
+  _isGenerating = val;
+  var btn = document.getElementById('btn-generate');
+  btn.disabled = val;
+  btn.textContent = val ? '…' : '↑';
+}
+
+function clearForm() {
+  document.getElementById('prompt-input').value = '';
+  document.getElementById('char-count').textContent = '0/1000';
+  setRefImages([]);
+}
+
+function setEditForm(data) {
+  if (data.type !== undefined && data.type !== _currentType) {
+    switchTab(data.type);
+  }
+  if (data.model) {
+    var sel = document.getElementById('sel-model');
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === data.model) { sel.selectedIndex = i; break; }
+    }
+    onModelChange();
+  }
+  if (data.aspectRatio) {
+    updateAspectRatioOptions();
+    var arSel = document.getElementById('sel-aspect-ratio');
+    for (var j = 0; j < arSel.options.length; j++) {
+      if (arSel.options[j].value === data.aspectRatio) { arSel.selectedIndex = j; break; }
+    }
+  }
+  if (data.prompt !== undefined) {
+    document.getElementById('prompt-input').value = data.prompt;
+    document.getElementById('char-count').textContent = data.prompt.length + '/1000';
+  }
+  if (data.refImages) setRefImages(data.refImages);
+
+  if (data.autoSubmit) {
+    submitGenerate();
+  }
+}
+
+// ─── 下拉菜单 ─────────────────────────────────────────────
+
+function toggleDropdown(taskId, event) {
+  event.stopPropagation();
+  var target = document.getElementById('dm-' + taskId);
+  var isOpen = target.classList.contains('open');
+  // 关闭所有其他菜单
+  document.querySelectorAll('.dropdown-menu').forEach(function(m) {
+    m.classList.remove('open');
+  });
+  if (!isOpen) target.classList.add('open');
+}
+
+function closeDropdown(taskId) {
+  var menu = document.getElementById('dm-' + taskId);
+  if (menu) menu.classList.remove('open');
+}
+
+document.addEventListener('click', function() {
+  document.querySelectorAll('.dropdown-menu').forEach(function(m) {
+    m.classList.remove('open');
+  });
+});
+
+document.addEventListener('contextmenu', function(e) {
+  if (e.target.tagName !== 'IMG') e.preventDefault();
+});
+
+// ─── 灯箱 ────────────────────────────────────────────────
+
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lightbox-img').src = '';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeLightbox();
+});
+
+// ─── 初始化 ──────────────────────────────────────────────
+
+window.addEventListener('load', function() {
+  // 初始化下拉框
+  updateModelList();
+  updateAspectRatioOptions();
+  document.getElementById('sel-duration').style.display = 'none'; // 默认图片模式
+  updateResolutionVisibility();
+
+  window.chrome.webview.postMessage(JSON.stringify({ action: 'ready' }));
+});
+</script>
+</body>
+</html>
