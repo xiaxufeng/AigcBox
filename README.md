@@ -61,9 +61,14 @@ BananaBox/
 
 WebView2 运行时需单独安装，程序启动时会自动检测并提示。
 
+## 截图
+
+![AigcBox 界面截图](https://img2024.cnblogs.com/blog/1061005/202602/1061005-20260227173437324-521427860.png)
+
+## 下载
+
+没有 Visual Studio 开发环境？可直接下载编译好的程序：[夸克网盘](https://pan.quark.cn/s/73f4c5c37e61)
+
 ## 许可证
 
 MIT License
-
-如果没有visual studio环境，可以下载编译好的程序：
-https://pan.quark.cn/s/73f4c5c37e61
