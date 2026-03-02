@@ -64,3 +64,6 @@ WebView2 运行时需单独安装，程序启动时会自动检测并提示。
 ## 许可证
 
 MIT License
+
+如果没有visual studio环境，可以下载编译好的程序：
+https://pan.quark.cn/s/73f4c5c37e61
